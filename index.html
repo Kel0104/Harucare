@@ -1,0 +1,168 @@
+<!-- end list -->
+   <!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>哈露醬照護</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: #f0f2f5; color: #333; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; }
+        h1, h2 { color: #4a4a4a; text-align: center; }
+        #app { background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 100%; max-width: 600px; padding: 20px; box-sizing: border-box; }
+        .task { display: flex; justify-content: space-between; align-items: center; padding: 15px; border-bottom: 1px solid #eee; }
+        .task:last-child { border-bottom: none; }
+        .task-details { display: flex; flex-direction: column; }
+        .task-name { font-size: 1.2em; display: flex; align-items: center; margin-bottom: 5px; }
+        .task-name span { margin-right: 10px; }
+        .task-status { font-size: 0.9em; color: #777; }
+        .task-status.completed { color: #28a745; font-weight: bold; }
+        .action-btn { background: #5a67d8; color: white; border: none; border-radius: 8px; padding: 12px 18px; font-size: 1em; cursor: pointer; transition: background .2s; }
+        .action-btn:disabled { background: #ccc; cursor: not-allowed; }
+        .modal { display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.6); align-items: center; justify-content: center; }
+        .modal.show { display: flex; }
+        .modal-content { background-color: #fefefe; padding: 25px; border: 1px solid #888; width: 85%; max-width: 400px; border-radius: 12px; text-align: center; animation: zoomIn 0.3s; }
+        @keyframes zoomIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .person-buttons { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 20px 0; }
+        .person-btn { padding: 12px; border: 1px solid #ccc; border-radius: 8px; background: white; font-size: 1em; cursor: pointer; }
+        .person-btn.selected { border-color: #5a67d8; font-weight: bold; }
+        .confirm-buttons { display: flex; justify-content: center; gap: 15px; margin-top: 20px; }
+        #confirm, #cancel { padding: 10px 20px; border-radius: 8px; border: none; color: white; font-size: 1em; width: 100px; }
+        #confirm { background: #48bb78; }
+        #cancel { background: #a0aec0; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <h1>🐕‍🦺 哈露醬照護日誌</h1>
+        <h2 id="currentDate"></h2>
+        <div id="tasks"></div>
+        <div id="modal" class="modal">
+            <div class="modal-content">
+                <h3 id="modalTitle"></h3>
+                <div class="person-buttons">
+                    <button class="person-btn" data-person="爸爸">👨‍👧 爸爸</button>
+                    <button class="person-btn" data-person="媽媽">👩‍👧 媽媽</button>
+                    <button class="person-btn" data-person="你">🧒 你</button>
+                </div>
+                <div class="confirm-buttons">
+                    <button id="confirm">確認</button>
+                    <button id="cancel">取消</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            let tasks = {};
+            const taskOrder = ['早餐', '晚餐', '上午外出', '下午外出', '晚上外出'];
+            const taskEmojis = {'早餐': '🍽️', '晚餐': '🍖', '上午外出': '🌅', '下午外出': '☀️', '晚上外出': '🌙'};
+
+            const tasksContainer = document.getElementById('tasks');
+            const modal = document.getElementById('modal');
+            const modalTitle = document.getElementById('modalTitle');
+            const personButtons = document.querySelector('.person-buttons');
+            const confirmBtn = document.getElementById('confirm');
+            const cancelBtn = document.getElementById('cancel');
+            const dateEl = document.getElementById('currentDate');
+
+            let currentTask = null;
+            let selectedPerson = null;
+
+            const loadState = () => {
+                const savedDate = localStorage.getItem('haruCareDate');
+                const savedTasks = localStorage.getItem('haruCareTasks');
+                const today = new Date().toLocaleDateString();
+
+                if (today !== savedDate || !savedTasks) {
+                    taskOrder.forEach(name => {
+                        tasks[name] = { emoji: taskEmojis[name], done: false, by: '', time: '' };
+                    });
+                    localStorage.setItem('haruCareDate', today);
+                } else {
+                    tasks = JSON.parse(savedTasks);
+                }
+                saveState();
+            };
+
+            const saveState = () => {
+                localStorage.setItem('haruCareTasks', JSON.stringify(tasks));
+            };
+
+            const renderDate = () => {
+                const d = new Date();
+                dateEl.textContent = d.toLocaleDateString('zh-TW', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            };
+
+            const renderTasks = () => {
+                tasksContainer.innerHTML = '';
+                taskOrder.forEach(taskName => {
+                    const task = tasks[taskName];
+                    const taskEl = document.createElement('div');
+                    taskEl.className = 'task';
+
+                    let statusHTML = task.done 
+                        ? `<div class="task-status completed">✅ 由 ${task.by} 於 ${task.time} 完成</div>`
+                        : `<div class="task-status">⬜ 尚未進行</div>`;
+
+                    const actionBtnHTML = `<button class="action-btn" data-task="${taskName}" ${task.done ? "disabled" : ""}>我完成了</button>`;
+
+                    taskEl.innerHTML = `
+                        <div class="task-details">
+                            <div class="task-name"><span>${task.emoji}</span>${taskName}</div>
+                            ${statusHTML}
+                        </div>
+                        ${actionBtnHTML}
+                    `;
+                    tasksContainer.appendChild(taskEl);
+                });
+            };
+
+            const handleActionClick = (e) => {
+                if (!e.target.classList.contains('action-btn')) return;
+                currentTask = e.target.dataset.task;
+                selectedPerson = null;
+                modalTitle.textContent = `誰完成了「${currentTask}」？`;
+                document.querySelectorAll('.person-btn').forEach(btn => btn.classList.remove('selected'));
+                modal.classList.add('show');
+            };
+
+            const handlePersonClick = (e) => {
+                if (!e.target.classList.contains('person-btn')) return;
+                selectedPerson = e.target.dataset.person;
+                document.querySelectorAll('.person-btn').forEach(btn => btn.classList.remove('selected'));
+                e.target.classList.add('selected');
+            };
+
+            const handleConfirm = () => {
+                if (!selectedPerson) {
+                    alert('請選擇一個人！');
+                    return;
+                }
+                const now = new Date();
+                tasks[currentTask] = { ...tasks[currentTask], done: true, by: selectedPerson, time: now.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false }) };
+                saveState();
+                renderTasks();
+                modal.classList.remove('show');
+            };
+
+            const handleCancel = () => {
+                modal.classList.remove('show');
+            };
+
+            const init = () => {
+                loadState();
+                renderDate();
+                renderTasks();
+                tasksContainer.addEventListener('click', handleActionClick);
+                personButtons.addEventListener('click', handlePersonClick);
+                confirmBtn.addEventListener('click', handleConfirm);
+                cancelBtn.addEventListener('click', handleCancel);
+            };
+
+            init();
+        });
+    </script>
+</body>
+</html>
