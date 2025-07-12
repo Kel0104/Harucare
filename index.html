@@ -71,21 +71,31 @@
             let selectedPerson = null;
 
             const loadState = () => {
-                const savedDate = localStorage.getItem('haruCareDate');
-                const savedTasks = localStorage.getItem('haruCareTasks');
-                const today = new Date().toLocaleDateString();
+    const savedDate = localStorage.getItem('haruCareDate');
+    const savedTasksRaw = localStorage.getItem('haruCareTasks');
+    const today = new Date().toLocaleDateString();
 
-                if (today !== savedDate || !savedTasks) {
-                    taskOrder.forEach(name => {
-                        tasks[name] = { emoji: taskEmojis[name], done: false, by: '', time: '' };
-                    });
-                    localStorage.setItem('haruCareDate', today);
-                } else {
-                    tasks = JSON.parse(savedTasks);
-                }
-                saveState();
+    if (today !== savedDate || !savedTasksRaw) {
+        // 如果是新的一天，或沒有任何儲存的資料，就用預設的 emojis 建立全新的任務列表
+        taskOrder.forEach(name => {
+            tasks[name] = { emoji: taskEmojis[name], done: false, by: '', time: '' };
+        });
+    } else {
+        // 如果是同一天，就載入舊的進度，但重新套用程式碼中最新的 Emojis
+        const savedTasks = JSON.parse(savedTasksRaw);
+        taskOrder.forEach(name => {
+            tasks[name] = {
+                emoji: taskEmojis[name], // 總是使用程式碼中最新的 Emoji
+                done: savedTasks[name]?.done || false, // 保留舊的完成狀態
+                by: savedTasks[name]?.by || '',       // 保留舊的執行人
+                time: savedTasks[name]?.time || ''    // 保留舊的時間
             };
-
+        });
+    }
+    // 不論如何，都用當下的日期和最新的任務狀態去儲存
+    localStorage.setItem('haruCareDate', today);
+    saveState();
+};
             const saveState = () => {
                 localStorage.setItem('haruCareTasks', JSON.stringify(tasks));
             };
